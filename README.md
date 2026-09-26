@@ -36,10 +36,11 @@ binding is dropped until the file is fixed.
 ```sh
 brew tap jonasks/tap
 brew trust jonasks/tap      # Homebrew requires this once for third-party taps
-brew install --cask klepp
+brew install --cask --no-quarantine klepp
 ```
 
-Klepp is ad-hoc signed, not notarized, so if macOS refuses to open it once:
+Klepp is ad-hoc signed, not notarized, so Gatekeeper blocks it unless it is
+installed with `--no-quarantine`. If you already installed it without that flag:
 `xattr -dr com.apple.quarantine /Applications/Klepp.app`. Apple Silicon and macOS 26+ only.
 
 ## Build from source

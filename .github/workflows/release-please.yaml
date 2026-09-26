@@ -112,7 +112,9 @@ jobs:
 
             caveats do
               <<~EOS
-                Klepp is ad-hoc signed, not notarized. If macOS refuses to open it:
+                Klepp is ad-hoc signed, not notarized. Install with
+                  brew install --cask --no-quarantine klepp
+                or, if Gatekeeper already blocked it:
                   xattr -dr com.apple.quarantine /Applications/Klepp.app
 
                 Auto-paste (⏎) needs Accessibility access for Klepp in
