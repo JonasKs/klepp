@@ -35,6 +35,7 @@ binding is dropped until the file is fixed.
 
 ```sh
 brew tap jonasks/tap
+brew trust jonasks/tap      # Homebrew requires this once for third-party taps
 brew install --cask klepp
 ```
 
