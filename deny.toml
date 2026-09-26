@@ -1,0 +1,29 @@
+# Klepp only ships for Apple Silicon macOS; restricting the graph keeps Linux-only GTK
+# dependencies of tauri's tray/menu crates out of the checks.
+[graph]
+targets = ["aarch64-apple-darwin"]
+
+[advisories]
+ignore = []
+version = 2
+yanked = "warn"
+
+[sources]
+unknown-git = "deny"
+unknown-registry = "deny"
+
+[licenses]
+allow = [
+  "Unicode-3.0",
+  "MIT",
+  "Apache-2.0",
+  "BSD-3-Clause",
+  "Zlib",
+  # Weak copyleft (file-level); pulled in by tauri-utils via cssparser/selectors.
+  "MPL-2.0",
+]
+confidence-threshold = 0.93
+version = 2
+
+[licenses.private]
+ignore = true

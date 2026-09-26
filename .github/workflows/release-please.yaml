@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+        with:
+          config-file: ".github/release-please-config.json"
+          manifest-file: ".github/.release-please-manifest.json"
+
+  # Apple Silicon Klepp.app, zipped, uploaded to the release.
+  build:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.release-please.outputs.version }}
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall tauri-cli@3.0.0-alpha.2 --locked --no-confirm --force
+
+      - name: Build Klepp.app (arm64)
+        run: cargo tauri build --ci
+
+      - name: Ad-hoc sign and zip
+        run: |
+          APP=target/release/bundle/macos/Klepp.app
+          codesign --force --deep --sign - "$APP"
+          ditto -c -k --keepParent "$APP" "Klepp-${VERSION}-aarch64.zip"
+          shasum -a 256 "Klepp-${VERSION}-aarch64.zip" > checksums.txt
+          cat checksums.txt
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "Klepp-${VERSION}-aarch64.zip" checksums.txt --repo ${{ github.repository }}
+
+  update-homebrew:
+    needs: [release-please, build]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.release-please.outputs.version }}
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - name: Download checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "$TAG" --pattern checksums.txt --repo ${{ github.repository }} --dir /tmp
+
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: jonasks/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update cask
+        run: |
+          SHA=$(awk '{print $1}' /tmp/checksums.txt)
+          mkdir -p Casks
+          cat > Casks/klepp.rb << CASK
+          cask "klepp" do
+            version "$VERSION"
+            sha256 "$SHA"
+
+            url "https://github.com/jonasks/klepp/releases/download/v#{version}/Klepp-#{version}-aarch64.zip"
+            name "Klepp"
+            desc "Small, glassy clipboard manager for macOS"
+            homepage "https://github.com/jonasks/klepp"
+
+            depends_on macos: ">= :tahoe"
+            depends_on arch: :arm64
+
+            app "Klepp.app"
+
+            uninstall quit: "com.jonas.klepp"
+
+            zap trash: "~/.klepp"
+
+            caveats do
+              <<~EOS
+                Klepp is ad-hoc signed, not notarized. If macOS refuses to open it:
+                  xattr -dr com.apple.quarantine /Applications/Klepp.app
+
+                Auto-paste (⏎) needs Accessibility access for Klepp in
+                System Settings → Privacy & Security → Accessibility.
+              EOS
+            end
+          end
+          CASK
+          sed -i 's/^          //' Casks/klepp.rb
+          cat Casks/klepp.rb
+
+      - name: Create PR in tap repo
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          BRANCH="klepp-$TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add Casks/klepp.rb
+          git commit -m "feat: update klepp to $TAG"
+          git push origin "$BRANCH"
+          gh pr create --repo jonasks/homebrew-tap \
+            --title "Update klepp to $TAG" \
+            --body "Automated cask update from [klepp release](https://github.com/jonasks/klepp/releases/tag/$TAG)." \
+            --head "$BRANCH"
