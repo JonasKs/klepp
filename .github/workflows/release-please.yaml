@@ -101,7 +101,7 @@ jobs:
             desc "Small, glassy clipboard manager for macOS"
             homepage "https://github.com/jonasks/klepp"
 
-            depends_on macos: ">= :tahoe"
+            depends_on macos: :tahoe
             depends_on arch: :arm64
 
             app "Klepp.app"
