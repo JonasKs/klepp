@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+  # Re-publish the cask for an existing release, e.g. after fixing the tap step.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish to the tap (e.g. v0.1.0)"
+        required: true
 
 permissions:
   contents: write
@@ -11,6 +17,7 @@ permissions:
 
 jobs:
   release-please:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -59,12 +66,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$TAG" "Klepp-${VERSION}-aarch64.zip" checksums.txt --repo ${{ github.repository }}
 
+  # Writes Casks/klepp.rb straight to the tap's main branch, over SSH with a
+  # write-enabled deploy key (secret HOMEBREW_TAP_DEPLOY_KEY on this repo).
   update-homebrew:
     needs: [release-please, build]
+    if: ${{ !cancelled() && (needs.release-please.outputs.release_created || inputs.tag) }}
     runs-on: ubuntu-latest
     env:
-      VERSION: ${{ needs.release-please.outputs.version }}
-      TAG: ${{ needs.release-please.outputs.tag_name }}
+      TAG: ${{ inputs.tag || needs.release-please.outputs.tag_name }}
     steps:
       - name: Download checksums
         env:
@@ -75,10 +84,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: jonasks/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
 
       - name: Update cask
         run: |
+          VERSION="${TAG#v}"
           SHA=$(awk '{print $1}' /tmp/checksums.txt)
           mkdir -p Casks
           cat > Casks/klepp.rb << CASK
@@ -114,18 +124,10 @@ jobs:
           sed -i 's/^          //' Casks/klepp.rb
           cat Casks/klepp.rb
 
-      - name: Create PR in tap repo
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: Push to tap
         run: |
-          BRANCH="klepp-$TAG"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b "$BRANCH"
           git add Casks/klepp.rb
-          git commit -m "feat: update klepp to $TAG"
-          git push origin "$BRANCH"
-          gh pr create --repo jonasks/homebrew-tap \
-            --title "Update klepp to $TAG" \
-            --body "Automated cask update from [klepp release](https://github.com/jonasks/klepp/releases/tag/$TAG)." \
-            --head "$BRANCH"
+          git commit -m "feat: update klepp to $TAG" -m "https://github.com/jonasks/klepp/releases/tag/$TAG"
+          git push origin HEAD:main
