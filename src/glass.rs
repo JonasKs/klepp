@@ -37,6 +37,7 @@ fn install(mtm: MainThreadMarker, win: &NSWindow, radius: f64) {
         NSWindowCollectionBehavior::CanJoinAllSpaces
             | NSWindowCollectionBehavior::FullScreenAuxiliary,
     );
-    win.setHasShadow(true);
-    win.invalidateShadow();
+    // A transparent window's shadow is computed as a rectangle here, which
+    // shows up as a square dark corner outside the rounded glass.
+    win.setHasShadow(false);
 }
