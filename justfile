@@ -43,22 +43,24 @@ package: bundle
 bundle:
     cargo tauri build
 
-# Build, copy to /Applications, register as a login item and launch
+# Build, copy to /Applications and launch (Klepp registers itself as a login item)
 install: bundle
     rm -rf /Applications/Klepp.app
     cp -R {{app}} /Applications/Klepp.app
-    -osascript -e 'tell application "System Events" to delete (every login item whose name is "Klepp")' >/dev/null 2>&1
-    osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Klepp.app", hidden:true}' >/dev/null
     -pkill -x klepp
     open /Applications/Klepp.app
     @echo '✅ Installed. Press Ctrl+Shift+V.'
 
-# Stop Klepp, remove the app and login item (clips in ~/.klepp are kept)
+# Stop Klepp and remove the app (clips in ~/.klepp are kept)
 uninstall:
+    -/Applications/Klepp.app/Contents/MacOS/klepp --login-status >/dev/null 2>&1
     -pkill -x klepp
-    -osascript -e 'tell application "System Events" to delete (every login item whose name is "Klepp")' >/dev/null 2>&1
     rm -rf /Applications/Klepp.app
-    @echo '🗑  Removed app and login item. Your clips are still in ~/.klepp.'
+    @echo '🗑  Removed the app. Your clips are still in ~/.klepp.'
+
+# Is Klepp registered to launch at login?
+login-status:
+    /Applications/Klepp.app/Contents/MacOS/klepp --login-status
 
 # Show the newest clips in the database
 clips n="20":

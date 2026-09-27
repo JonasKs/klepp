@@ -15,6 +15,7 @@ use crate::AppState;
 
 const ID_OPEN: &str = "open";
 const ID_PAUSE: &str = "pause";
+const ID_LOGIN: &str = "login";
 const ID_FOLDER: &str = "folder";
 const ID_EDIT_CONFIG: &str = "edit-config";
 const ID_RELOAD_CONFIG: &str = "reload-config";
@@ -46,6 +47,14 @@ pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, ID_OPEN, open_label(shortcut), true, None::<&str>)?;
     let pause =
         CheckMenuItem::with_id(app, ID_PAUSE, "Pause recording", true, false, None::<&str>)?;
+    let login = CheckMenuItem::with_id(
+        app,
+        ID_LOGIN,
+        "Launch at login",
+        true,
+        crate::login::is_enabled(),
+        None::<&str>,
+    )?;
 
     let retention_items: Vec<CheckMenuItem<_>> = RETENTION_CHOICES
         .iter()
@@ -82,6 +91,7 @@ pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
             &open,
             &pause,
             &PredefinedMenuItem::separator(app)?,
+            &login,
             &retention,
             &PredefinedMenuItem::separator(app)?,
             &folder,
@@ -108,6 +118,15 @@ pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
                     app.state::<AppState>()
                         .paused
                         .store(paused, Ordering::Relaxed);
+                }
+                ID_LOGIN => {
+                    let on = login.is_checked().unwrap_or(false);
+                    let state = app.state::<AppState>();
+                    let store = state.store.lock().unwrap();
+                    if let Err(e) = crate::login::apply_choice(&store, on) {
+                        let _ = login.set_checked(!on);
+                        alert(app, "Klepp could not change the login item", &e);
+                    }
                 }
                 ID_FOLDER => {
                     let root = app

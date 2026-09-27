@@ -276,7 +276,7 @@ impl Store {
             .flatten()
     }
 
-    pub fn set_setting(&mut self, key: &str, value: &str) {
+    pub fn set_setting(&self, key: &str, value: &str) {
         let _ = self.db.execute(
             "INSERT INTO settings (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -291,7 +291,7 @@ impl Store {
             .unwrap_or(0)
     }
 
-    pub fn set_retention_days(&mut self, days: u32) {
+    pub fn set_retention_days(&self, days: u32) {
         self.set_setting("retention_days", &days.to_string());
     }
 }

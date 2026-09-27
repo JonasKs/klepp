@@ -33,13 +33,26 @@ jobs:
           manifest-file: ".github/.release-please-manifest.json"
 
   # Apple Silicon Klepp.app, zipped, uploaded to the release.
+  #
+  # With the APPLE_* secrets present, tauri signs with the Developer ID
+  # certificate (hardened runtime) and notarizes through the App Store Connect
+  # API, so Gatekeeper accepts the app on any Mac. Without them the app is
+  # ad-hoc signed and the cask warns about quarantine.
   build:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: macos-latest
+    outputs:
+      signed: ${{ steps.mode.outputs.signed }}
     env:
       VERSION: ${{ needs.release-please.outputs.version }}
       TAG: ${{ needs.release-please.outputs.tag_name }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -50,14 +63,44 @@ jobs:
       - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall tauri-cli@3.0.0-alpha.2 --locked --no-confirm --force
 
+      - name: Decide signing mode
+        id: mode
+        run: |
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ] && [ -n "$APPLE_API_KEY" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "Signing with Developer ID and notarizing."
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::APPLE_* secrets missing: shipping an ad-hoc signed, unnotarized app."
+          fi
+
+      - name: Write notarization API key
+        if: steps.mode.outputs.signed == 'true'
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: |
+          printf '%s\n' "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/AuthKey.p8"
+          echo "APPLE_API_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+
       - name: Build Klepp.app (arm64)
         run: cargo tauri build --ci
 
-      - name: Ad-hoc sign and zip
+      - name: Ad-hoc sign (unsigned builds only)
+        if: steps.mode.outputs.signed != 'true'
+        run: codesign --force --deep --sign - target/release/bundle/macos/Klepp.app
+
+      - name: Verify signature
         run: |
           APP=target/release/bundle/macos/Klepp.app
-          codesign --force --deep --sign - "$APP"
-          ditto -c -k --keepParent "$APP" "Klepp-${VERSION}-aarch64.zip"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -E "Authority|Signature|TeamIdentifier" || true
+          if [ "${{ steps.mode.outputs.signed }}" = "true" ]; then
+            spctl --assess --type execute --verbose=2 "$APP"
+          fi
+
+      - name: Zip
+        run: |
+          ditto -c -k --keepParent target/release/bundle/macos/Klepp.app "Klepp-${VERSION}-aarch64.zip"
           shasum -a 256 "Klepp-${VERSION}-aarch64.zip" > checksums.txt
           cat checksums.txt
 
@@ -90,6 +133,16 @@ jobs:
         run: |
           VERSION="${TAG#v}"
           SHA=$(awk '{print $1}' /tmp/checksums.txt)
+          if [ "$SIGNED" = "true" ]; then
+            QUARANTINE_NOTE=""
+          else
+            QUARANTINE_NOTE="Klepp is ad-hoc signed, not notarized. Install with
+                  brew install --cask --no-quarantine klepp
+                or, if Gatekeeper already blocked it:
+                  xattr -dr com.apple.quarantine /Applications/Klepp.app
+
+                "
+          fi
           mkdir -p Casks
           cat > Casks/klepp.rb << CASK
           cask "klepp" do
@@ -112,12 +165,7 @@ jobs:
 
             caveats do
               <<~EOS
-                Klepp is ad-hoc signed, not notarized. Install with
-                  brew install --cask --no-quarantine klepp
-                or, if Gatekeeper already blocked it:
-                  xattr -dr com.apple.quarantine /Applications/Klepp.app
-
-                Auto-paste (⏎) needs Accessibility access for Klepp in
+                ${QUARANTINE_NOTE}Auto-paste (⏎) needs Accessibility access for Klepp in
                 System Settings → Privacy & Security → Accessibility.
               EOS
             end

@@ -11,6 +11,10 @@ A small, glassy clipboard manager for Apple Silicon Macs on macOS 26+, written i
   `org.nspasteboard.ConcealedType` (which 1Password sets) and anything copied
   while a 1Password app is frontmost.
 - Identical clips are de-duplicated (re-copying moves the clip to the top).
+- When run from /Applications, Klepp registers itself as a login item, so it
+  starts with your Mac after `brew install`. Toggle it under **Launch at login**
+  in the menu bar or with `klepp --login off`; it shows up in
+  System Settings → General → Login Items. Dev builds never register.
 - A clipboard icon in the menu bar offers Open, Pause recording, a
   **Delete clips older than** schedule (never / 1 / 7 / 30 / 90 days / 1 year,
   enforced at launch and every 30 minutes), config editing, and Quit.
@@ -56,6 +60,14 @@ just             # list all recipes
 Requires Rust, [just](https://just.systems) and the Tauri 3 CLI
 (`cargo install tauri-cli --version "^3.0.0-alpha"`, only for `just install` / `just bundle`).
 `klepp --show` opens the panel immediately on launch.
+
+## Signing
+
+With the `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
+`APPLE_TEAM_ID`, `APPLE_API_ISSUER`, `APPLE_API_KEY` and `APPLE_API_KEY_CONTENT` secrets set,
+the release build is signed with a Developer ID certificate and notarized, and the cask
+drops its quarantine caveat. Without them the release is ad-hoc signed and the workflow
+prints a warning.
 
 ## Releasing
 

@@ -3,6 +3,7 @@
 mod clipboard;
 mod config;
 mod glass;
+mod login;
 mod paste;
 mod store;
 mod tray;
@@ -193,6 +194,20 @@ pub fn run_retention(app: &AppHandle) -> usize {
 }
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--login-status") {
+        println!("launch at login: {}", login::describe());
+        return;
+    }
+    if let Some(i) = args.iter().position(|a| a == "--login") {
+        let on = args.get(i + 1).map(|v| v == "on").unwrap_or(true);
+        let store = Store::open().expect("cannot open ~/.klepp/klepp.db");
+        if let Err(e) = login::apply_choice(&store, on) {
+            eprintln!("klepp: {e}");
+        }
+        println!("launch at login: {}", login::describe());
+        return;
+    }
     let store = Store::open().expect("cannot open ~/.klepp/klepp.db");
     eprintln!(
         "klepp: database at {}",
@@ -270,6 +285,10 @@ fn main() {
             if let Some(e) = &config_error {
                 tray::alert(&handle, "Klepp could not read config.toml", e);
             }
+            // Installed copies (in /Applications) register as a login item on
+            // every launch unless the user switched that off, so a brew
+            // install starts with the Mac and dev builds never do.
+            login::register_if_installed(&app.state::<AppState>().store.lock().unwrap());
             tray::install(app, &shortcut)?;
 
             // `klepp --show` opens the panel right away (handy for testing).
