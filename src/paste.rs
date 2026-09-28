@@ -1,9 +1,9 @@
 //! Pastes into the app that was in front before the panel opened: re-activate
 //! it, wait until it really is frontmost, then send Cmd+V.
 //!
-//! Sending keystrokes needs Accessibility permission. macOS applies a new
-//! grant only to processes started afterwards, so Klepp must be restarted
-//! once after the permission is given.
+//! Sending keystrokes needs Accessibility permission. A grant made for an
+//! ad-hoc signed build is bound to that binary's hash and does not carry over
+//! to later builds; `tccutil reset Accessibility com.jonas.klepp` clears it.
 
 use std::thread;
 use std::time::{Duration, Instant};

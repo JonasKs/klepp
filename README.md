@@ -101,10 +101,21 @@ Pressing ⏎ copies the clip, brings back the app you were in, and sends ⌘V to
 Sending that keystroke needs **Accessibility** access (System Settings → Privacy &
 Security → Accessibility). Klepp asks for it the first time you press ⏎ without it.
 
-macOS applies the permission only to apps started after it was granted, so
-**quit and reopen Klepp once after granting it** (menu bar icon → Quit Klepp, then
-`open /Applications/Klepp.app`). Without the permission the clip is still on your
-clipboard; paste with ⌘V yourself.
+Without the permission the clip is still on your clipboard; paste with ⌘V yourself.
+
+If Klepp is switched on under Accessibility but ⏎ still does not paste, the
+permission record is stale. This happens after moving from an unsigned or
+ad-hoc signed build to a signed one: macOS keeps the record bound to the old
+binary. `~/.klepp/klepp.log` then shows `accessibility=false` at startup. Reset
+the record and grant it again:
+
+```sh
+tccutil reset Accessibility com.jonas.klepp
+tccutil reset PostEvent com.jonas.klepp
+```
+
+Records created for a signed release are bound to the signing team, so they
+survive upgrades.
 
 ## Troubleshooting
 
