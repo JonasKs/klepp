@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/JonasKs/klepp/compare/v0.2.0...v0.2.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* paste into the app that was in front when the panel opened ([ec1ffee](https://github.com/JonasKs/klepp/commit/ec1ffeea4d0e445457517382b18646d43cfd4df3))
+
 ## [0.2.0](https://github.com/JonasKs/klepp/compare/v0.1.0...v0.2.0) (2026-09-28)
 
 
