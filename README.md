@@ -74,8 +74,8 @@ prints a warning.
 Commits on `main` follow [Conventional Commits](https://www.conventionalcommits.org).
 [release-please](https://github.com/googleapis/release-please) keeps a release PR open;
 merging it tags `vX.Y.Z`, builds `Klepp-X.Y.Z-aarch64.zip`, attaches it to the GitHub
-release, and pushes the updated cask to [jonasks/homebrew-tap](https://github.com/jonasks/homebrew-tap)
-(over SSH with a deploy key stored as the `HOMEBREW_TAP_DEPLOY_KEY` secret). The workflow can also be
+release, and opens a PR against [jonasks/homebrew-tap](https://github.com/jonasks/homebrew-tap)
+that bumps the cask (authenticated with the `HOMEBREW_TAP_TOKEN` secret). The workflow can also be
 dispatched by hand with an existing tag to re-publish its cask. CI runs fmt, clippy, tests and `cargo deny` on every PR.
 
 ## Permissions
