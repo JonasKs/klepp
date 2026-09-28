@@ -3,6 +3,7 @@
 mod clipboard;
 mod config;
 mod glass;
+mod log;
 mod login;
 mod paste;
 mod store;
@@ -36,6 +37,8 @@ pub struct AppState {
     pub watcher: Arc<Watcher>,
     /// When set (from the menu bar), new clips are not recorded.
     pub paused: AtomicBool,
+    /// The app that was frontmost when the panel opened; paste goes there.
+    pub paste_target: Mutex<Option<(i32, String)>>,
 }
 
 #[derive(serde::Serialize)]
@@ -97,13 +100,17 @@ fn pick(id: i64, app: AppHandle, state: State<AppState>) -> bool {
         Some(png) => state.watcher.set_image(&png),
         None => state.watcher.set_text(&clip.text),
     }
+    let target = state.paste_target.lock().unwrap().clone();
+    log::line(format!("pick: clip {id} ({:?}) -> {target:?}", clip.kind));
     hide_panel(&app);
-    thread::spawn(|| {
-        // Give macOS a moment to hand focus back to the previous app.
-        thread::sleep(Duration::from_millis(150));
-        paste::send_cmd_v();
-    });
+    thread::spawn(move || paste::paste_into(target));
     true
+}
+
+/// Lets the panel report its own errors into the log file.
+#[tauri::command]
+fn report(message: String) {
+    log::line(format!("ui: {message}"));
 }
 
 #[tauri::command]
@@ -115,6 +122,11 @@ pub fn show_panel(app: &AppHandle) {
     let Some(win) = app.get_webview_window("main") else {
         return;
     };
+
+    // Remember who was in front, so the pick can paste back into it.
+    if let Some(target) = paste::frontmost_other_app() {
+        *app.state::<AppState>().paste_target.lock().unwrap() = Some(target);
+    }
 
     let monitor = app
         .cursor_position()
@@ -138,6 +150,17 @@ pub fn show_panel(app: &AppHandle) {
     let _ = win.show();
     let _ = win.set_focus();
     let _ = app.emit("klepp://shown", ());
+
+    // Test hook for debug builds: KLEPP_AUTOPICK=1 picks the newest clip
+    // shortly after the panel opens, through the same UI path as Enter.
+    #[cfg(debug_assertions)]
+    if std::env::var_os("KLEPP_AUTOPICK").is_some() {
+        let app = app.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(1500));
+            let _ = app.emit("klepp://autopick", ());
+        });
+    }
 }
 
 fn hide_panel(app: &AppHandle) {
@@ -209,10 +232,14 @@ fn main() {
         return;
     }
     let store = Store::open().expect("cannot open ~/.klepp/klepp.db");
-    eprintln!(
-        "klepp: database at {}",
+    log::rotate();
+    log::line(format!(
+        "start: v{} pid {} accessibility={} db={}",
+        env!("CARGO_PKG_VERSION"),
+        std::process::id(),
+        paste::is_trusted(),
         store.root().join("klepp.db").display()
-    );
+    ));
     let (config, config_error) = match Config::load(store.root()) {
         Ok(c) => (c, None),
         Err(e) => (Config::default(), Some(e)),
@@ -224,9 +251,10 @@ fn main() {
             store: Mutex::new(store),
             watcher: Watcher::new(config),
             paused: AtomicBool::new(false),
+            paste_target: Mutex::new(None),
         })
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![list, remove, pick, hide])
+        .invoke_handler(tauri::generate_handler![list, remove, pick, hide, report])
         // Serves image clips to the panel as klepp://localhost/image/<id>.
         .register_uri_scheme_protocol("klepp", |ctx, request| {
             let png = request

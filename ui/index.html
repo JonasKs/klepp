@@ -219,9 +219,19 @@
     render();
   }
 
+  const report = message => invoke('report', { message: String(message) }).catch(() => {});
+  window.addEventListener('error', ev => report(`error: ${ev.message} @${ev.lineno}`));
+  window.addEventListener('unhandledrejection', ev => report(`rejection: ${ev.reason}`));
+
   async function pick() {
     const c = clips[sel];
-    if (c) await invoke('pick', { id: c.id });
+    if (!c) return report('pick: nothing selected');
+    try {
+      const ok = await invoke('pick', { id: c.id });
+      if (!ok) report(`pick: backend refused clip ${c.id}`);
+    } catch (e) {
+      report(`pick failed: ${e}`);
+    }
   }
 
   async function removeAt(i) {
@@ -247,6 +257,7 @@
   window.addEventListener('focus', () => q.focus());
 
   listen('klepp://clips-changed', () => load());
+  listen('klepp://autopick', () => pick());
   listen('klepp://shown', () => { q.value = ''; sel = 0; load(); q.focus(); });
 
   load();

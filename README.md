@@ -97,10 +97,23 @@ dispatched by hand with an existing tag to re-publish its cask. CI runs fmt, cli
 
 ## Permissions
 
-Pressing ⏎ copies the clip and sends ⌘V to the previous app. That keystroke
-only works if Klepp has **Accessibility** access (System Settings → Privacy &
-Security → Accessibility). Without it the clip is still on your clipboard;
-just paste with ⌘V yourself.
+Pressing ⏎ copies the clip, brings back the app you were in, and sends ⌘V to it.
+Sending that keystroke needs **Accessibility** access (System Settings → Privacy &
+Security → Accessibility). Klepp asks for it the first time you press ⏎ without it.
+
+macOS applies the permission only to apps started after it was granted, so
+**quit and reopen Klepp once after granting it** (menu bar icon → Quit Klepp, then
+`open /Applications/Klepp.app`). Without the permission the clip is still on your
+clipboard; paste with ⌘V yourself.
+
+## Troubleshooting
+
+Klepp logs what it does to `~/.klepp/klepp.log`: startup (including whether it has
+Accessibility access), every pick, which app it pasted into, and any panel errors.
+
+```sh
+tail -f ~/.klepp/klepp.log
+```
 
 ## Layout
 

@@ -24,11 +24,12 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString", "NSArray", "NSGeometry", "NSData", "NSDictionary", "NSError"] }
 objc2-app-kit = { version = "0.3", features = [
   "NSPasteboard", "NSWorkspace", "NSRunningApplication", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSAlert",
-  "NSGlassEffectView", "NSView", "NSWindow", "NSResponder", "NSColor", "objc2-quartz-core",
+  "NSGlassEffectView", "NSView", "NSWindow", "NSResponder", "NSColor", "objc2-quartz-core", "libc",
 ] }
 objc2-quartz-core = { version = "0.3", features = ["CALayer"] }
 objc2-service-management = "0.3"
 core-graphics = "0.25"
+core-foundation = "0.10"
 
 [profile.release]
 opt-level = "s"

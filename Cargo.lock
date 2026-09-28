@@ -1974,6 +1974,7 @@ name = "klepp"
 version = "0.2.0"
 dependencies = [
  "chrono",
+ "core-foundation",
  "core-graphics",
  "dirs",
  "objc2",
