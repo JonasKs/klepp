@@ -11,10 +11,8 @@ A small, glassy clipboard manager for Apple Silicon Macs on macOS 26+, written i
   `org.nspasteboard.ConcealedType` (which 1Password sets) and anything copied
   while a 1Password app is frontmost.
 - Identical clips are de-duplicated (re-copying moves the clip to the top).
-- When run from /Applications, Klepp registers itself as a login item, so it
-  starts with your Mac after `brew install`. Toggle it under **Launch at login**
-  in the menu bar or with `klepp --login off`; it shows up in
-  System Settings → General → Login Items. Dev builds never register.
+- Starts with your Mac: the installed app registers itself as a login item
+  (see [Start at login](#start-at-login)).
 - A clipboard icon in the menu bar offers Open, Pause recording, a
   **Delete clips older than** schedule (never / 1 / 7 / 30 / 90 days / 1 year,
   enforced at launch and every 30 minutes), config editing, and Quit.
@@ -40,12 +38,31 @@ binding is dropped until the file is fixed.
 ```sh
 brew tap jonasks/tap
 brew trust jonasks/tap      # Homebrew requires this once for third-party taps
-brew install --cask --no-quarantine klepp
+brew install --cask klepp
+open /Applications/Klepp.app
 ```
 
-Klepp is ad-hoc signed, not notarized, so Gatekeeper blocks it unless it is
-installed with `--no-quarantine`. If you already installed it without that flag:
-`xattr -dr com.apple.quarantine /Applications/Klepp.app`. Apple Silicon and macOS 26+ only.
+Releases are signed with a Developer ID certificate and notarized by Apple, so
+Gatekeeper opens them without prompts. Apple Silicon and macOS 26+ only.
+Upgrade with `brew upgrade --cask klepp`.
+
+## Start at login
+
+Klepp starts with your Mac automatically. The first time the installed app
+(`/Applications/Klepp.app`) is opened it registers itself as a login item, so
+after `brew install` you only need to open it once.
+
+| To | Do |
+|----|----|
+| Check the state | `/Applications/Klepp.app/Contents/MacOS/klepp --login-status` |
+| Turn it off | Menu bar icon → untick **Launch at login**, or `klepp --login off` |
+| Turn it back on | Menu bar icon → tick **Launch at login**, or `klepp --login on` |
+| See it in macOS | System Settings → General → Login Items & Extensions → Klepp |
+
+If you switch it off, Klepp remembers that and will not re-register on the next
+launch. Builds run from source (`just run`, or a bundle under `target/`) never
+register; only the copy in `/Applications` does. If macOS shows the status as
+"requires approval", enable Klepp in the Login Items pane above.
 
 ## Build from source
 
