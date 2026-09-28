@@ -2,6 +2,8 @@
 
 A small, glassy clipboard manager for Apple Silicon Macs on macOS 26+.
 
+Made for me, by agents. Feel free to use.
+
 - Keeps a searchable history of the text and images you copy.
 - **Ctrl+Shift+V** opens a Liquid Glass panel across the bottom of the screen.
 - Never records anything copied from 1Password, or any clip an app marks as concealed.
