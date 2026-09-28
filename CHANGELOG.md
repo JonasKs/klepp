@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/JonasKs/klepp/compare/v0.1.0...v0.2.0) (2026-09-28)
+
+
+### Features
+
+* launch at login, and Developer ID signing in the release workflow ([fa1971c](https://github.com/JonasKs/klepp/commit/fa1971ce7db48df740f39b12194b3a8066d4ed21))
+
+
+### Bug Fixes
+
+* clip the panel window to the glass corner radius ([4bbfa03](https://github.com/JonasKs/klepp/commit/4bbfa036855d5b5fb7a846a51596a1abe0d3f706))
+
 ## 0.1.0 (2026-09-26)
 
 
