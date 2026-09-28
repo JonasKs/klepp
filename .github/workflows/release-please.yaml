@@ -66,7 +66,8 @@ jobs:
       - name: Decide signing mode
         id: mode
         run: |
-          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_SIGNING_IDENTITY" ] && [ -n "$APPLE_API_KEY" ]; then
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ] \
+            && [ -n "$APPLE_SIGNING_IDENTITY" ] && [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_ISSUER" ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
             echo "Signing with Developer ID and notarizing."
           else
