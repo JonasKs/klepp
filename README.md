@@ -16,10 +16,10 @@ Made for me, by agents. Feel free to use.
 brew tap jonasks/tap
 brew trust jonasks/tap      # Homebrew requires this once for third-party taps
 brew install --cask klepp
-open /Applications/Klepp.app
 ```
 
-Releases are signed and notarized by Apple. Upgrade with `brew upgrade --cask klepp`.
+Klepp opens by itself after installing. Releases are signed and notarized by Apple.
+Upgrade with `brew upgrade --cask klepp`; it reopens afterwards.
 
 ## Use
 
