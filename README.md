@@ -41,7 +41,7 @@ instead of duplicating it.
 
 Terminals paste text on ⌘V, but Claude Code takes images on Ctrl+V. Klepp handles
 that for you: when the clip is an image and the app you came from is a terminal
-(Ghostty, Terminal, iTerm2, Warp, kitty, Alacritty, WezTerm), **⏎** sends Ctrl+V.
+(Ghostty, cmux, Terminal, iTerm2, Warp, kitty, Alacritty, WezTerm), **⏎** sends Ctrl+V.
 In any other app, **⌃⏎** forces Ctrl+V.
 
 The clipboard icon in the menu bar lets you pause recording, choose when old clips

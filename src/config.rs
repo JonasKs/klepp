@@ -27,6 +27,7 @@ impl Default for Config {
             max_image_mb: 10,
             ctrl_v_image_apps: [
                 "com.mitchellh.ghostty",
+                "com.cmuxterm.",
                 "com.apple.Terminal",
                 "com.googlecode.iterm2",
                 "dev.warp.",
@@ -59,6 +60,7 @@ max_image_mb = 10
 # on Ctrl+V. Ctrl+Enter in the panel forces Ctrl+V anywhere.
 ctrl_v_image_apps = [
   "com.mitchellh.ghostty",
+  "com.cmuxterm.",
   "com.apple.Terminal",
   "com.googlecode.iterm2",
   "dev.warp.",
@@ -113,6 +115,7 @@ mod tests {
     fn terminals_paste_images_with_ctrl_v() {
         let cfg = Config::default();
         assert!(cfg.image_paste_uses_ctrl_v("com.mitchellh.ghostty"));
+        assert!(cfg.image_paste_uses_ctrl_v("com.cmuxterm.app"));
         assert!(cfg.image_paste_uses_ctrl_v("com.apple.Terminal"));
         assert!(cfg.image_paste_uses_ctrl_v("dev.warp.Warp-Stable"));
         assert!(!cfg.image_paste_uses_ctrl_v("org.mozilla.firefox"));
