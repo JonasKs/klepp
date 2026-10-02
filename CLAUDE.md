@@ -87,6 +87,11 @@ quarantine caveat.
 - **Pushing workflow files over HTTPS** needs the `workflow` token scope; the remote uses SSH.
 - **tauri-cli is pinned** to the 3 alpha in the release workflow; bump it together with the `tauri` crates.
 - **`brew upgrade` without a name upgrades everything.** Use `brew upgrade --cask klepp`.
+- **Do not add a relaunch step to the cask.** `brew upgrade` already reopens apps it
+  quit through `uninstall quit:`. `postflight` is deprecated, and its replacement
+  `postflight_steps` runs sandboxed, where `open` fails with `kLSNoExecutableErr`.
+  To observe the built-in reopen, leave Klepp running during the upgrade; killing it
+  first hides the behaviour.
 - **Testing paste.** Use Terminal.app or TextEdit as the target, never the terminal the
   session runs in. Confirm the newest clip is the one you expect before an autopick:
   it pastes whatever is on top, and a multi-line text clip pasted into a shell runs.

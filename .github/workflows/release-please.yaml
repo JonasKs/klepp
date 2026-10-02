@@ -165,11 +165,7 @@ jobs:
 
             app "Klepp.app"
 
-            # Start Klepp after install and bring it back after an upgrade.
-            postflight do
-              system_command "/usr/bin/open", args: ["#{appdir}/Klepp.app"]
-            end
-
+            # brew upgrade quits Klepp through this and reopens it afterwards.
             uninstall quit: "com.jonas.klepp"
 
             zap trash: "~/.klepp"
