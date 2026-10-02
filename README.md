@@ -29,12 +29,20 @@ Releases are signed and notarized by Apple. Upgrade with `brew upgrade --cask kl
 | Type | Search; every word must match |
 | **↑ / ↓** | Move through clips |
 | **⏎** | Paste the selected clip into the app you came from |
+| **⌃⏎** | Paste with Ctrl+V instead of ⌘V |
 | **⌘⌫** or ✕ | Delete the selected clip |
 | **esc** | Close |
 
 Images appear as thumbnails. Search `image`, a size like `1200x800`, or the name of
 the app you copied from to find them. Copying something again moves it to the top
 instead of duplicating it.
+
+### Pasting images into Claude Code
+
+Terminals paste text on ⌘V, but Claude Code takes images on Ctrl+V. Klepp handles
+that for you: when the clip is an image and the app you came from is a terminal
+(Ghostty, Terminal, iTerm2, Warp, kitty, Alacritty, WezTerm), **⏎** sends Ctrl+V.
+In any other app, **⌃⏎** forces Ctrl+V.
 
 The clipboard icon in the menu bar lets you pause recording, choose when old clips
 are deleted (never, or after 1, 7, 30, 90 days or 1 year), edit the configuration,
@@ -65,7 +73,10 @@ with your Mac from then on.
 shortcut = "ctrl+shift+v"     # e.g. "cmd+shift+space", "alt+v"
 ignore_apps = ["1password"]   # apps whose clips are never recorded (bundle-id substrings)
 max_image_mb = 10             # larger images are skipped
+ctrl_v_image_apps = ["com.mitchellh.ghostty", "com.apple.Terminal"]  # images paste with Ctrl+V here
 ```
+
+`ctrl_v_image_apps` defaults to the common terminals; add a bundle id to extend it.
 
 Open it with **Edit config.toml…** in the menu bar, then pick **Reload config**.
 No restart needed.

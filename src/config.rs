@@ -14,6 +14,9 @@ pub struct Config {
     pub ignore_apps: Vec<String>,
     /// Images larger than this are not recorded.
     pub max_image_mb: u64,
+    /// Apps (bundle-id substrings) where an image clip is pasted with Ctrl+V
+    /// instead of Cmd+V. Terminals: that is how Claude Code takes images.
+    pub ctrl_v_image_apps: Vec<String>,
 }
 
 impl Default for Config {
@@ -22,6 +25,17 @@ impl Default for Config {
             shortcut: "ctrl+shift+v".into(),
             ignore_apps: vec!["1password".into()],
             max_image_mb: 10,
+            ctrl_v_image_apps: [
+                "com.mitchellh.ghostty",
+                "com.apple.Terminal",
+                "com.googlecode.iterm2",
+                "dev.warp.",
+                "net.kovidgoyal.kitty",
+                "org.alacritty",
+                "com.github.wez.wezterm",
+            ]
+            .map(String::from)
+            .to_vec(),
         }
     }
 }
@@ -39,6 +53,19 @@ ignore_apps = ["1password"]
 
 # Images larger than this (in megabytes) are not recorded.
 max_image_mb = 10
+
+# Apps (bundle-id substrings) where an image is pasted with Ctrl+V instead of
+# Cmd+V. Terminals paste text on Cmd+V; Claude Code in a terminal takes images
+# on Ctrl+V. Ctrl+Enter in the panel forces Ctrl+V anywhere.
+ctrl_v_image_apps = [
+  "com.mitchellh.ghostty",
+  "com.apple.Terminal",
+  "com.googlecode.iterm2",
+  "dev.warp.",
+  "net.kovidgoyal.kitty",
+  "org.alacritty",
+  "com.github.wez.wezterm",
+]
 "#;
 
 impl Config {
@@ -61,9 +88,51 @@ impl Config {
     }
 
     pub fn ignores(&self, bundle_id: &str) -> bool {
-        let lower = bundle_id.to_lowercase();
-        self.ignore_apps
-            .iter()
-            .any(|p| !p.is_empty() && lower.contains(&p.to_lowercase()))
+        matches_any(&self.ignore_apps, bundle_id)
+    }
+
+    /// Should an image clip be pasted into this app with Ctrl+V?
+    pub fn image_paste_uses_ctrl_v(&self, bundle_id: &str) -> bool {
+        matches_any(&self.ctrl_v_image_apps, bundle_id)
+    }
+}
+
+/// Case-insensitive "bundle id contains one of these patterns".
+fn matches_any(patterns: &[String], bundle_id: &str) -> bool {
+    let lower = bundle_id.to_lowercase();
+    patterns
+        .iter()
+        .any(|p| !p.is_empty() && lower.contains(&p.to_lowercase()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminals_paste_images_with_ctrl_v() {
+        let cfg = Config::default();
+        assert!(cfg.image_paste_uses_ctrl_v("com.mitchellh.ghostty"));
+        assert!(cfg.image_paste_uses_ctrl_v("com.apple.Terminal"));
+        assert!(cfg.image_paste_uses_ctrl_v("dev.warp.Warp-Stable"));
+        assert!(!cfg.image_paste_uses_ctrl_v("org.mozilla.firefox"));
+        assert!(!cfg.image_paste_uses_ctrl_v("com.apple.TextEdit"));
+    }
+
+    #[test]
+    fn template_parses_to_defaults() {
+        let parsed: Config = toml::from_str(TEMPLATE).unwrap();
+        let default = Config::default();
+        assert_eq!(parsed.shortcut, default.shortcut);
+        assert_eq!(parsed.ignore_apps, default.ignore_apps);
+        assert_eq!(parsed.ctrl_v_image_apps, default.ctrl_v_image_apps);
+    }
+
+    #[test]
+    fn old_config_without_new_keys_still_loads() {
+        let cfg: Config = toml::from_str("shortcut = \"cmd+shift+v\"\n").unwrap();
+        assert_eq!(cfg.shortcut, "cmd+shift+v");
+        assert!(cfg.image_paste_uses_ctrl_v("com.mitchellh.ghostty"));
+        assert!(cfg.ignores("com.1password.1password"));
     }
 }

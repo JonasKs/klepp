@@ -7,13 +7,12 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 
-use objc2::runtime::ProtocolObject;
 use objc2::AnyThread;
 use objc2_app_kit::{
     NSBitmapImageFileType, NSBitmapImageRep, NSImage, NSPasteboard, NSPasteboardTypePNG,
-    NSPasteboardTypeString, NSPasteboardTypeTIFF, NSPasteboardWriting, NSWorkspace,
+    NSPasteboardTypeString, NSPasteboardTypeTIFF, NSWorkspace,
 };
-use objc2_foundation::{NSArray, NSData, NSDictionary, NSString};
+use objc2_foundation::{NSData, NSDictionary, NSString};
 
 use crate::config::Config;
 
@@ -68,17 +67,19 @@ impl Watcher {
         self.note_own_write(&pb);
     }
 
-    /// Replace the clipboard contents with an image (PNG bytes). Written via
-    /// NSImage so every app gets the representation it prefers.
+    /// Replace the clipboard contents with an image (PNG bytes). Both PNG and
+    /// TIFF are written explicitly: native apps read TIFF, while tools that
+    /// ask for PNG by type (Claude Code, browsers) get the original bytes.
     pub fn set_image(&self, png: &[u8]) {
         let pb = NSPasteboard::generalPasteboard();
         let data = NSData::with_bytes(png);
-        let Some(image) = NSImage::initWithData(NSImage::alloc(), &data) else {
-            return;
-        };
-        let writable: &ProtocolObject<dyn NSPasteboardWriting> = ProtocolObject::from_ref(&*image);
+        let tiff =
+            NSImage::initWithData(NSImage::alloc(), &data).and_then(|i| i.TIFFRepresentation());
         pb.clearContents();
-        pb.writeObjects(&NSArray::from_slice(&[writable]));
+        pb.setData_forType(Some(&data), unsafe { NSPasteboardTypePNG });
+        if let Some(tiff) = tiff {
+            pb.setData_forType(Some(&tiff), unsafe { NSPasteboardTypeTIFF });
+        }
         self.note_own_write(&pb);
     }
 

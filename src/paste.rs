@@ -41,18 +41,37 @@ pub fn prompt_for_trust() {
     unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef()) };
 }
 
-/// Process id and name of the frontmost app, unless that is Klepp itself.
-pub fn frontmost_other_app() -> Option<(i32, String)> {
+/// The app a pick pastes into.
+#[derive(Clone, Debug)]
+pub struct Target {
+    pub pid: i32,
+    pub name: String,
+    pub bundle_id: Option<String>,
+}
+
+/// Which paste shortcut to send. Terminals paste text on Cmd+V, but programs
+/// running inside them (Claude Code) take images on Ctrl+V.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Key {
+    CmdV,
+    CtrlV,
+}
+
+/// The frontmost app, unless that is Klepp itself.
+pub fn frontmost_other_app() -> Option<Target> {
     let app = NSWorkspace::sharedWorkspace().frontmostApplication()?;
     let pid = app.processIdentifier();
     if pid == std::process::id() as i32 {
         return None;
     }
-    let name = app
-        .localizedName()
-        .map(|s| s.to_string())
-        .unwrap_or_default();
-    Some((pid, name))
+    Some(Target {
+        pid,
+        name: app
+            .localizedName()
+            .map(|s| s.to_string())
+            .unwrap_or_default(),
+        bundle_id: app.bundleIdentifier().map(|s| s.to_string()),
+    })
 }
 
 fn frontmost_pid() -> Option<i32> {
@@ -77,15 +96,19 @@ fn activate(pid: i32) -> bool {
     frontmost_pid() == Some(pid)
 }
 
-fn send_cmd_v() -> bool {
+fn send(key: Key) -> bool {
     let Ok(source) = CGEventSource::new(CGEventSourceStateID::CombinedSessionState) else {
         return false;
+    };
+    let flags = match key {
+        Key::CmdV => CGEventFlags::CGEventFlagCommand,
+        Key::CtrlV => CGEventFlags::CGEventFlagControl,
     };
     let mut ok = true;
     for down in [true, false] {
         match CGEvent::new_keyboard_event(source.clone(), KEY_V, down) {
             Ok(ev) => {
-                ev.set_flags(CGEventFlags::CGEventFlagCommand);
+                ev.set_flags(flags);
                 ev.post(CGEventTapLocation::AnnotatedSession);
             }
             Err(_) => ok = false,
@@ -97,7 +120,7 @@ fn send_cmd_v() -> bool {
 
 /// Paste the current clipboard into `target` (the app that was in front when
 /// the panel opened). Everything is logged so silent failures are traceable.
-pub fn paste_into(target: Option<(i32, String)>) {
+pub fn paste_into(target: Option<Target>, key: Key) {
     if !is_trusted() {
         log::line(
             "paste: skipped, Klepp lacks Accessibility permission (clip is on the clipboard)",
@@ -106,10 +129,12 @@ pub fn paste_into(target: Option<(i32, String)>) {
         return;
     }
     match target {
-        Some((pid, name)) => {
-            let front = activate(pid);
+        Some(t) => {
+            let front = activate(t.pid);
             log::line(format!(
-                "paste: target {name:?} (pid {pid}) frontmost={front}, actual frontmost pid={:?}",
+                "paste: target {:?} (pid {}) frontmost={front}, actual frontmost pid={:?}",
+                t.name,
+                t.pid,
                 frontmost_pid()
             ));
         }
@@ -123,6 +148,6 @@ pub fn paste_into(target: Option<(i32, String)>) {
         }
     }
     thread::sleep(Duration::from_millis(40));
-    let sent = send_cmd_v();
-    log::line(format!("paste: cmd+v sent={sent}"));
+    let sent = send(key);
+    log::line(format!("paste: {key:?} sent={sent}"));
 }

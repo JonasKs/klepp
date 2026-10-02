@@ -38,7 +38,7 @@ pub struct AppState {
     /// When set (from the menu bar), new clips are not recorded.
     pub paused: AtomicBool,
     /// The app that was frontmost when the panel opened; paste goes there.
-    pub paste_target: Mutex<Option<(i32, String)>>,
+    pub paste_target: Mutex<Option<paste::Target>>,
 }
 
 #[derive(serde::Serialize)]
@@ -82,10 +82,11 @@ fn remove(id: i64, state: State<AppState>) -> bool {
     state.store.lock().unwrap().delete(id)
 }
 
-/// Put the clip on the clipboard, close the panel and paste into the
-/// previously active app.
+/// Put the clip on the clipboard, close the panel and paste into the app
+/// that was in front. `ctrl` forces Ctrl+V (Ctrl+Enter in the panel); images
+/// going into a terminal use it automatically.
 #[tauri::command]
-fn pick(id: i64, app: AppHandle, state: State<AppState>) -> bool {
+fn pick(id: i64, ctrl: Option<bool>, app: AppHandle, state: State<AppState>) -> bool {
     let (clip, image) = {
         let store = state.store.lock().unwrap();
         let Some(clip) = store.get(id) else {
@@ -96,14 +97,36 @@ fn pick(id: i64, app: AppHandle, state: State<AppState>) -> bool {
             .flatten();
         (clip, image)
     };
+    let is_image = image.is_some();
     match image {
         Some(png) => state.watcher.set_image(&png),
         None => state.watcher.set_text(&clip.text),
     }
     let target = state.paste_target.lock().unwrap().clone();
-    log::line(format!("pick: clip {id} ({:?}) -> {target:?}", clip.kind));
+    let terminal_image = is_image
+        && target
+            .as_ref()
+            .and_then(|t| t.bundle_id.as_deref())
+            .map(|b| {
+                state
+                    .watcher
+                    .config
+                    .read()
+                    .unwrap()
+                    .image_paste_uses_ctrl_v(b)
+            })
+            .unwrap_or(false);
+    let key = if ctrl.unwrap_or(false) || terminal_image {
+        paste::Key::CtrlV
+    } else {
+        paste::Key::CmdV
+    };
+    log::line(format!(
+        "pick: clip {id} ({:?}) -> {target:?} with {key:?}",
+        clip.kind
+    ));
     hide_panel(&app);
-    thread::spawn(move || paste::paste_into(target));
+    thread::spawn(move || paste::paste_into(target, key));
     true
 }
 

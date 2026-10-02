@@ -21,7 +21,7 @@ just clips        # newest rows in ~/.klepp/klepp.db
 - `src/clipboard.rs` — NSPasteboard poller (text + images), concealed/ignored-app filtering, writing clips back
 - `src/store.rs` — SQLite (`~/.klepp/klepp.db`): clips, search, retention, `settings` table; unit tests live here
 - `src/config.rs` — `~/.klepp/config.toml` (shortcut, ignore_apps, max_image_mb)
-- `src/paste.rs` — re-activates the previous app, waits until frontmost, sends Cmd+V via CGEvent; Accessibility check and prompt
+- `src/paste.rs` — re-activates the previous app, waits until frontmost, sends Cmd+V (or Ctrl+V for images into terminals, see `ctrl_v_image_apps`) via CGEvent; Accessibility check and prompt
 - `src/login.rs` — launch at login through SMAppService
 - `src/glass.rs` — NSGlassEffectView under the transparent webview, content layer clipped to the corner radius
 - `src/tray.rs` — menu bar item and native alerts
@@ -87,4 +87,7 @@ quarantine caveat.
 - **Pushing workflow files over HTTPS** needs the `workflow` token scope; the remote uses SSH.
 - **tauri-cli is pinned** to the 3 alpha in the release workflow; bump it together with the `tauri` crates.
 - **`brew upgrade` without a name upgrades everything.** Use `brew upgrade --cask klepp`.
+- **Testing paste.** Use Terminal.app or TextEdit as the target, never the terminal the
+  session runs in. Confirm the newest clip is the one you expect before an autopick:
+  it pastes whatever is on top, and a multi-line text clip pasted into a shell runs.
 - **KLEPP_AUTOPICK=1** (debug builds only) picks the newest clip 1.5 s after the panel opens, through the same UI path as Enter.
