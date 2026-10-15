@@ -9,6 +9,9 @@ use std::path::{Path, PathBuf};
 
 /// Text clips larger than this are not recorded (keeps the store snappy).
 const MAX_TEXT_BYTES: usize = 1024 * 1024;
+/// A styled flavor (RTF or HTML) larger than this is dropped; the plain text
+/// is still recorded. Office apps put several MB of HTML on the pasteboard.
+pub const MAX_RICH_BYTES: usize = 2 * 1024 * 1024;
 /// Max number of results returned to the UI per query.
 const MAX_RESULTS: usize = 300;
 
@@ -31,6 +34,20 @@ impl Kind {
         } else {
             Kind::Text
         }
+    }
+}
+
+/// Styled flavors copied together with a text clip. Enter puts them back on
+/// the pasteboard so the paste keeps its formatting; Cmd+Enter leaves them out.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Rich {
+    pub rtf: Option<Vec<u8>>,
+    pub html: Option<Vec<u8>>,
+}
+
+impl Rich {
+    pub fn is_empty(&self) -> bool {
+        self.rtf.is_none() && self.html.is_none()
     }
 }
 
@@ -90,6 +107,15 @@ impl Store {
                value TEXT NOT NULL
              );",
         )?;
+        // Styled flavors arrived after 0.3.0; older databases lack the columns.
+        for col in ["rtf", "html"] {
+            let exists = db
+                .prepare("SELECT 1 FROM pragma_table_info('clips') WHERE name = ?1")?
+                .exists([col])?;
+            if !exists {
+                db.execute_batch(&format!("ALTER TABLE clips ADD COLUMN {col} BLOB"))?;
+            }
+        }
         Ok(Store { path, db })
     }
 
@@ -98,16 +124,22 @@ impl Store {
         self.path.parent().unwrap_or(Path::new("."))
     }
 
-    /// Record a text clip. Returns `None` if it was skipped (empty, too big,
-    /// or identical to the most recent clip). An older identical clip is
-    /// removed so the history stays de-duplicated and the clip moves to the top.
-    pub fn add_text(&mut self, text: String, app: Option<String>) -> Option<Clip> {
+    /// Record a text clip with whatever styled flavors came with it. Returns
+    /// `None` if it was skipped (empty, too big, or identical to the most
+    /// recent clip). De-duplication looks at the plain text only; an older
+    /// identical clip is removed so the clip moves to the top.
+    pub fn add_text(&mut self, text: String, rich: Rich, app: Option<String>) -> Option<Clip> {
         if text.trim().is_empty() || text.len() > MAX_TEXT_BYTES {
             return None;
         }
         let hash = content_hash(text.as_bytes());
         let search = text.to_lowercase();
-        self.insert(Kind::Text, hash, &search, &text, None, 0, 0, app)
+        let keep = |f: Option<Vec<u8>>| f.filter(|b| !b.is_empty() && b.len() <= MAX_RICH_BYTES);
+        let rich = Rich {
+            rtf: keep(rich.rtf),
+            html: keep(rich.html),
+        };
+        self.insert(Kind::Text, hash, &search, &text, None, &rich, 0, 0, app)
     }
 
     /// Record an image clip (PNG bytes). De-duplicated by content hash.
@@ -133,6 +165,7 @@ impl Store {
             &search,
             "",
             Some(&png),
+            &Rich::default(),
             width,
             height,
             app,
@@ -147,6 +180,7 @@ impl Store {
         search: &str,
         text: &str,
         image: Option<&[u8]>,
+        rich: &Rich,
         width: u32,
         height: u32,
         app: Option<String>,
@@ -174,14 +208,16 @@ impl Store {
         let ts = Local::now();
         self.db
             .execute(
-                "INSERT INTO clips (ts, kind, text, search, image, width, height, hash, app)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO clips (ts, kind, text, search, image, rtf, html, width, height, hash, app)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
                     ts.timestamp_millis(),
                     kind.as_str(),
                     text,
                     search,
                     image,
+                    rich.rtf,
+                    rich.html,
                     width,
                     height,
                     hash,
@@ -219,6 +255,21 @@ impl Store {
             .optional()
             .ok()
             .flatten()
+    }
+
+    /// Styled flavors of a text clip; empty when only plain text was copied.
+    pub fn rich(&self, id: i64) -> Rich {
+        self.db
+            .query_row("SELECT rtf, html FROM clips WHERE id = ?1", [id], |r| {
+                Ok(Rich {
+                    rtf: r.get(0)?,
+                    html: r.get(1)?,
+                })
+            })
+            .optional()
+            .ok()
+            .flatten()
+            .unwrap_or_default()
     }
 
     pub fn delete(&mut self, id: i64) -> bool {
@@ -329,15 +380,18 @@ mod tests {
         let db = tmp("text");
         let mut s = Store::open_at(db.clone()).unwrap();
         assert!(
-            s.add_text("   ".into(), None).is_none(),
+            s.add_text("   ".into(), Rich::default(), None).is_none(),
             "blank clips are skipped"
         );
         let a = s
-            .add_text("hello world".into(), Some("Test".into()))
+            .add_text("hello world".into(), Rich::default(), Some("Test".into()))
             .unwrap();
-        let _b = s.add_text("Hello Rust".into(), None).unwrap();
+        let _b = s
+            .add_text("Hello Rust".into(), Rich::default(), None)
+            .unwrap();
         assert!(
-            s.add_text("Hello Rust".into(), None).is_none(),
+            s.add_text("Hello Rust".into(), Rich::default(), None)
+                .is_none(),
             "same as newest is skipped"
         );
 
@@ -348,7 +402,9 @@ mod tests {
         assert_eq!(s.search("nope").len(), 0);
 
         // Re-adding an older clip moves it to the top without duplicating it.
-        let a2 = s.add_text("hello world".into(), None).unwrap();
+        let a2 = s
+            .add_text("hello world".into(), Rich::default(), None)
+            .unwrap();
         assert_ne!(a.id, a2.id);
         assert_eq!(s.search("").len(), 2);
         assert_eq!(s.search("")[0].text, "hello world");
@@ -366,6 +422,47 @@ mod tests {
     }
 
     #[test]
+    fn rich_flavors_roundtrip_and_follow_dedupe() {
+        let db = tmp("rich");
+        let mut s = Store::open_at(db.clone()).unwrap();
+        let styled = Rich {
+            rtf: Some(b"{\\rtf1 hello}".to_vec()),
+            html: Some(b"<b>hello</b>".to_vec()),
+        };
+        let a = s.add_text("hello".into(), styled.clone(), None).unwrap();
+        assert_eq!(s.rich(a.id), styled);
+
+        let plain = s.add_text("plain".into(), Rich::default(), None).unwrap();
+        assert!(s.rich(plain.id).is_empty());
+        assert!(
+            s.rich(999_999).is_empty(),
+            "unknown id is empty, not an error"
+        );
+
+        // Copying the same text again with different styling replaces the old flavors.
+        let html_only = Rich {
+            rtf: None,
+            html: Some(b"<i>hello</i>".to_vec()),
+        };
+        let a2 = s.add_text("hello".into(), html_only.clone(), None).unwrap();
+        assert_ne!(a.id, a2.id);
+        assert_eq!(s.rich(a2.id), html_only);
+
+        // Oversized or empty flavors are dropped, the text is still kept.
+        let huge = Rich {
+            rtf: Some(vec![b' '; MAX_RICH_BYTES + 1]),
+            html: Some(Vec::new()),
+        };
+        let h = s.add_text("huge".into(), huge, None).unwrap();
+        assert!(s.rich(h.id).is_empty());
+
+        // Survives reopening (and the column migration is idempotent).
+        drop(s);
+        let s = Store::open_at(db).unwrap();
+        assert_eq!(s.rich(a2.id), html_only);
+    }
+
+    #[test]
     fn image_add_dedupe_delete() {
         let mut s = Store::open_at(tmp("image")).unwrap();
         let png = vec![1u8, 2, 3, 4];
@@ -377,7 +474,8 @@ mod tests {
             s.add_image(png.clone(), 10, 20, None).is_none(),
             "same image as newest is skipped"
         );
-        s.add_text("in between".into(), None).unwrap();
+        s.add_text("in between".into(), Rich::default(), None)
+            .unwrap();
         let a2 = s.add_image(png, 10, 20, None).unwrap();
         assert_ne!(a.id, a2.id);
         assert!(s.get(a.id).is_none(), "old duplicate image removed");
@@ -394,8 +492,8 @@ mod tests {
     #[test]
     fn retention_purges_old_clips() {
         let mut s = Store::open_at(tmp("purge")).unwrap();
-        let old = s.add_text("old".into(), None).unwrap();
-        let fresh = s.add_text("fresh".into(), None).unwrap();
+        let old = s.add_text("old".into(), Rich::default(), None).unwrap();
+        let fresh = s.add_text("fresh".into(), Rich::default(), None).unwrap();
         let eight_days_ago = Local::now().timestamp_millis() - 8 * 86_400_000;
         s.db.execute(
             "UPDATE clips SET ts = ?1 WHERE id = ?2",

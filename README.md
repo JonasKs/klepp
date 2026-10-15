@@ -29,7 +29,8 @@ Homebrew quits Klepp, swaps it, and opens it again.
 | **⌘⇧V** | Open or close the panel |
 | Type | Search; every word must match |
 | **↑ / ↓** | Move through clips |
-| **⏎** | Paste the selected clip into the app you came from |
+| **⏎** | Paste the selected clip into the app you came from, formatting included |
+| **⌘⏎** | Paste as plain text, without fonts, colours or links |
 | **⌃⏎** | Paste with Ctrl+V instead of ⌘V |
 | **⌘⌫** or ✕ | Delete the selected clip |
 | **esc** | Close |
@@ -37,6 +38,10 @@ Homebrew quits Klepp, swaps it, and opens it again.
 Images appear as thumbnails. Search `image`, a size like `1200x800`, or the name of
 the app you copied from to find them. Copying something again moves it to the top
 instead of duplicating it.
+
+Text clips keep the styling they were copied with, so code from an editor or a
+paragraph from a web page pastes the way it would straight after copying. Hold **⌘**
+while pressing ⏎ (or clicking a clip) to paste just the text.
 
 ### Pasting images into Claude Code
 

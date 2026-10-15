@@ -9,12 +9,14 @@ use std::time::Duration;
 
 use objc2::AnyThread;
 use objc2_app_kit::{
-    NSBitmapImageFileType, NSBitmapImageRep, NSImage, NSPasteboard, NSPasteboardTypePNG,
-    NSPasteboardTypeString, NSPasteboardTypeTIFF, NSWorkspace,
+    NSBitmapImageFileType, NSBitmapImageRep, NSImage, NSPasteboard, NSPasteboardTypeHTML,
+    NSPasteboardTypePNG, NSPasteboardTypeRTF, NSPasteboardTypeString, NSPasteboardTypeTIFF,
+    NSWorkspace,
 };
 use objc2_foundation::{NSData, NSDictionary, NSString};
 
 use crate::config::Config;
+use crate::store::Rich;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 
@@ -29,6 +31,8 @@ const IGNORED_PB_TYPES: &[&str] = &[
 pub enum NewClip {
     Text {
         text: String,
+        /// RTF/HTML flavors copied alongside the text, if any.
+        rich: Rich,
         app: Option<String>,
     },
     Image {
@@ -59,11 +63,24 @@ impl Watcher {
             .store(pb.changeCount() as i64, Ordering::SeqCst);
     }
 
-    /// Replace the clipboard contents with `text`.
-    pub fn set_text(&self, text: &str) {
+    /// Replace the clipboard contents with `text`, plus the styled flavors in
+    /// `rich` when given. Pass `None` for a plain-text paste.
+    pub fn set_text(&self, text: &str, rich: Option<&Rich>) {
         let pb = NSPasteboard::generalPasteboard();
         pb.clearContents();
         pb.setString_forType(&NSString::from_str(text), unsafe { NSPasteboardTypeString });
+        if let Some(rich) = rich {
+            if let Some(rtf) = &rich.rtf {
+                pb.setData_forType(Some(&NSData::with_bytes(rtf)), unsafe {
+                    NSPasteboardTypeRTF
+                });
+            }
+            if let Some(html) = &rich.html {
+                pb.setData_forType(Some(&NSData::with_bytes(html)), unsafe {
+                    NSPasteboardTypeHTML
+                });
+            }
+        }
         self.note_own_write(&pb);
     }
 
@@ -119,6 +136,7 @@ impl Watcher {
                     if let Some(text) = pb.stringForType(unsafe { NSPasteboardTypeString }) {
                         on_clip(NewClip::Text {
                             text: text.to_string(),
+                            rich: read_rich(&pb),
                             app,
                         });
                     } else if let Some((png, width, height)) = read_image(&pb, max_image) {
@@ -153,6 +171,18 @@ fn frontmost_app() -> (Option<String>, Option<String>) {
     let bundle = app.bundleIdentifier().map(|s| s.to_string());
     let name = app.localizedName().map(|s| s.to_string());
     (bundle, name)
+}
+
+/// RTF and HTML flavors on the pasteboard. Sizes are capped in the store.
+fn read_rich(pb: &NSPasteboard) -> Rich {
+    Rich {
+        rtf: pb
+            .dataForType(unsafe { NSPasteboardTypeRTF })
+            .map(|d| d.to_vec()),
+        html: pb
+            .dataForType(unsafe { NSPasteboardTypeHTML })
+            .map(|d| d.to_vec()),
+    }
 }
 
 /// PNG bytes plus pixel size of the image on the pasteboard, if any.

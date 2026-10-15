@@ -84,10 +84,18 @@ fn remove(id: i64, state: State<AppState>) -> bool {
 
 /// Put the clip on the clipboard, close the panel and paste into the app
 /// that was in front. `ctrl` forces Ctrl+V (Ctrl+Enter in the panel); images
-/// going into a terminal use it automatically.
+/// going into a terminal use it automatically. `plain` (Cmd+Enter) leaves the
+/// RTF/HTML flavors off the clipboard so the text pastes without styling.
 #[tauri::command]
-fn pick(id: i64, ctrl: Option<bool>, app: AppHandle, state: State<AppState>) -> bool {
-    let (clip, image) = {
+fn pick(
+    id: i64,
+    ctrl: Option<bool>,
+    plain: Option<bool>,
+    app: AppHandle,
+    state: State<AppState>,
+) -> bool {
+    let plain = plain.unwrap_or(false);
+    let (clip, image, rich) = {
         let store = state.store.lock().unwrap();
         let Some(clip) = store.get(id) else {
             return false;
@@ -95,12 +103,14 @@ fn pick(id: i64, ctrl: Option<bool>, app: AppHandle, state: State<AppState>) -> 
         let image = (clip.kind == Kind::Image)
             .then(|| store.image(id))
             .flatten();
-        (clip, image)
+        let rich = (clip.kind == Kind::Text && !plain).then(|| store.rich(id));
+        (clip, image, rich)
     };
     let is_image = image.is_some();
+    let styled = rich.as_ref().is_some_and(|r| !r.is_empty());
     match image {
         Some(png) => state.watcher.set_image(&png),
-        None => state.watcher.set_text(&clip.text),
+        None => state.watcher.set_text(&clip.text, rich.as_ref()),
     }
     let target = state.paste_target.lock().unwrap().clone();
     let terminal_image = is_image
@@ -122,7 +132,7 @@ fn pick(id: i64, ctrl: Option<bool>, app: AppHandle, state: State<AppState>) -> 
         paste::Key::CmdV
     };
     log::line(format!(
-        "pick: clip {id} ({:?}) -> {target:?} with {key:?}",
+        "pick: clip {id} ({:?}, plain={plain}, styled={styled}) -> {target:?} with {key:?}",
         clip.kind
     ));
     hide_panel(&app);
@@ -369,7 +379,7 @@ fn main() {
                 }
                 let mut store = state.store.lock().unwrap();
                 let added = match clip {
-                    NewClip::Text { text, app } => store.add_text(text, app),
+                    NewClip::Text { text, rich, app } => store.add_text(text, rich, app),
                     NewClip::Image {
                         png,
                         width,

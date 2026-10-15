@@ -18,7 +18,7 @@ just clips        # newest rows in ~/.klepp/klepp.db
 ## Architecture
 
 - `src/main.rs` — Tauri app, global shortcut, panel placement, commands, `klepp://` image protocol, retention thread, CLI flags (`--show`, `--login on|off`, `--login-status`)
-- `src/clipboard.rs` — NSPasteboard poller (text + images), concealed/ignored-app filtering, writing clips back
+- `src/clipboard.rs` — NSPasteboard poller (text with RTF/HTML flavors + images), concealed/ignored-app filtering, writing clips back
 - `src/store.rs` — SQLite (`~/.klepp/klepp.db`): clips, search, retention, `settings` table; unit tests live here
 - `src/config.rs` — `~/.klepp/config.toml` (shortcut, ignore_apps, max_image_mb)
 - `src/paste.rs` — re-activates the previous app, waits until frontmost, sends Cmd+V (or Ctrl+V for images into terminals, see `ctrl_v_image_apps`) via CGEvent; Accessibility check and prompt
@@ -36,6 +36,9 @@ just clips        # newest rows in ~/.klepp/klepp.db
 - Tauri 3 has no default runtime: the builder must call `.runtime(tauri_runtime_wry::Wry::default())`.
 - GUI-set preferences (retention, login item choice) go in the `settings` table; hand-edited ones in `config.toml`.
 - Clip content is only ever put in the DOM with `textContent`, never `innerHTML`.
+- Text clips store their `public.rtf`/`public.html` flavors (`rtf`, `html` columns, capped at
+  `MAX_RICH_BYTES`). Enter writes them back with the text; Cmd+Enter (`plain: true` on `pick`)
+  writes the string only. Schema additions go through the `ALTER TABLE` loop in `Store::open_at`.
 - `deny.toml` is scoped to `aarch64-apple-darwin`, which keeps Linux-only GTK crates out of the checks.
 
 ## Releasing
