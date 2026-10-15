@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/JonasKs/klepp/compare/v0.3.0...v0.4.0) (2026-10-15)
+
+
+### Features
+
+* default shortcut is now Cmd+Shift+V ([3bb7e8a](https://github.com/JonasKs/klepp/commit/3bb7e8a8be8ce648daecff0038d06e46ad01f75d))
+* paste as plain text with Cmd+Enter ([7bca32b](https://github.com/JonasKs/klepp/commit/7bca32bf7fec29a2fbd0bd4bd312ad3b2280a9f6))
+
 ## [0.3.0](https://github.com/JonasKs/klepp/compare/v0.2.1...v0.3.0) (2026-10-02)
 
 
