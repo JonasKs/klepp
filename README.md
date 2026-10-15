@@ -5,7 +5,7 @@ A small, glassy clipboard manager for Apple Silicon Macs on macOS 26+.
 Made for me, by agents. Feel free to use.
 
 - Keeps a searchable history of the text and images you copy.
-- **Ctrl+Shift+V** opens a Liquid Glass panel across the bottom of the screen.
+- **⌘⇧V** opens a Liquid Glass panel across the bottom of the screen.
 - Never records anything copied from 1Password, or any clip an app marks as concealed.
 - Everything stays on your Mac, in `~/.klepp/klepp.db`.
 - Lives in the menu bar and starts with your Mac.
@@ -26,7 +26,7 @@ Homebrew quits Klepp, swaps it, and opens it again.
 
 | Key | Action |
 |-----|--------|
-| **Ctrl+Shift+V** | Open or close the panel |
+| **⌘⇧V** | Open or close the panel |
 | Type | Search; every word must match |
 | **↑ / ↓** | Move through clips |
 | **⏎** | Paste the selected clip into the app you came from |
@@ -71,7 +71,7 @@ with your Mac from then on.
 `~/.klepp/config.toml` is created on first launch:
 
 ```toml
-shortcut = "ctrl+shift+v"     # e.g. "cmd+shift+space", "alt+v"
+shortcut = "cmd+shift+v"      # e.g. "ctrl+shift+v", "cmd+shift+space"
 ignore_apps = ["1password"]   # apps whose clips are never recorded (bundle-id substrings)
 max_image_mb = 10             # larger images are skipped
 ctrl_v_image_apps = ["com.mitchellh.ghostty", "com.apple.Terminal"]  # images paste with Ctrl+V here

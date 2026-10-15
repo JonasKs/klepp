@@ -49,7 +49,7 @@ install: bundle
     cp -R {{app}} /Applications/Klepp.app
     -pkill -x klepp
     open /Applications/Klepp.app
-    @echo '✅ Installed. Press Ctrl+Shift+V.'
+    @echo '✅ Installed. Press ⌘⇧V.'
 
 # Stop Klepp and remove the app (clips in ~/.klepp are kept)
 uninstall:

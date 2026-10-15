@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
-    /// Global shortcut that toggles the panel, e.g. "ctrl+shift+v" or "cmd+shift+space".
+    /// Global shortcut that toggles the panel, e.g. "cmd+shift+v" or "ctrl+shift+v".
     pub shortcut: String,
     /// Clips copied while an app whose bundle id contains one of these
     /// (case-insensitive) is frontmost are never recorded.
@@ -22,7 +22,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            shortcut: "ctrl+shift+v".into(),
+            shortcut: "cmd+shift+v".into(),
             ignore_apps: vec!["1password".into()],
             max_image_mb: 10,
             ctrl_v_image_apps: [
@@ -45,7 +45,7 @@ const TEMPLATE: &str = r#"# Klepp configuration. Pick "Reload config" from the m
 
 # Global shortcut that toggles the panel.
 # Modifiers: ctrl, shift, alt (option), cmd (super). Keys: letters, digits, space, f1-f12, ...
-shortcut = "ctrl+shift+v"
+shortcut = "cmd+shift+v"
 
 # Clips copied while an app whose bundle id contains one of these strings is
 # frontmost are never recorded. Clips flagged as concealed (which 1Password
@@ -120,6 +120,11 @@ mod tests {
         assert!(cfg.image_paste_uses_ctrl_v("dev.warp.Warp-Stable"));
         assert!(!cfg.image_paste_uses_ctrl_v("org.mozilla.firefox"));
         assert!(!cfg.image_paste_uses_ctrl_v("com.apple.TextEdit"));
+    }
+
+    #[test]
+    fn default_shortcut_is_cmd_shift_v() {
+        assert_eq!(Config::default().shortcut, "cmd+shift+v");
     }
 
     #[test]
