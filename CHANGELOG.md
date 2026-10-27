@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/JonasKs/klepp/compare/v0.4.0...v0.5.0) (2026-10-27)
+
+
+### Features
+
+* copy file path or show image clips in Finder ([1e908c0](https://github.com/JonasKs/klepp/commit/1e908c09f2a84229b13db27b3c0baa39e888f823))
+
 ## [0.4.0](https://github.com/JonasKs/klepp/compare/v0.3.0...v0.4.0) (2026-10-15)
 
 
