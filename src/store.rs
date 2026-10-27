@@ -200,10 +200,16 @@ impl Store {
             return None;
         }
         // Drop older duplicates (move-to-top semantics).
-        let _ = self.db.execute(
-            "DELETE FROM clips WHERE hash = ?1 AND kind = ?2",
-            params![hash, kind.as_str()],
-        );
+        let dropped = self
+            .db
+            .execute(
+                "DELETE FROM clips WHERE hash = ?1 AND kind = ?2",
+                params![hash, kind.as_str()],
+            )
+            .unwrap_or(0);
+        if dropped > 0 && kind == Kind::Image {
+            self.prune_exports();
+        }
 
         let ts = Local::now();
         self.db
@@ -257,6 +263,42 @@ impl Store {
             .flatten()
     }
 
+    /// Folder for image clips written out as files by [`Store::export_image`].
+    fn exports_dir(&self) -> PathBuf {
+        self.root().join("images")
+    }
+
+    /// Write an image clip to `~/.klepp/images/klepp-<id>.png` (once) and
+    /// return its path, so it can be revealed in Finder or referenced by path.
+    /// The file goes away with the clip.
+    pub fn export_image(&self, id: i64) -> Option<PathBuf> {
+        let path = self.exports_dir().join(format!("klepp-{id}.png"));
+        if !path.exists() {
+            let png = self.image(id)?;
+            std::fs::create_dir_all(self.exports_dir()).ok()?;
+            std::fs::write(&path, png).ok()?;
+        }
+        Some(path)
+    }
+
+    /// Remove exported files whose clip no longer exists.
+    fn prune_exports(&self) {
+        let Ok(entries) = std::fs::read_dir(self.exports_dir()) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .and_then(|s| s.strip_prefix("klepp-"))
+                .and_then(|s| s.parse::<i64>().ok());
+            if id.is_some_and(|id| self.get(id).is_none()) {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+
     /// Styled flavors of a text clip; empty when only plain text was copied.
     pub fn rich(&self, id: i64) -> Rich {
         self.db
@@ -273,10 +315,15 @@ impl Store {
     }
 
     pub fn delete(&mut self, id: i64) -> bool {
-        self.db
+        let deleted = self
+            .db
             .execute("DELETE FROM clips WHERE id = ?1", [id])
             .map(|n| n > 0)
-            .unwrap_or(false)
+            .unwrap_or(false);
+        if deleted {
+            self.prune_exports();
+        }
+        deleted
     }
 
     /// Delete clips older than `days` days. Returns how many were removed.
@@ -291,6 +338,7 @@ impl Store {
             .unwrap_or(0);
         if n > 0 {
             let _ = self.db.execute_batch("VACUUM");
+            self.prune_exports();
         }
         n
     }
@@ -487,6 +535,25 @@ mod tests {
         assert_eq!((top.width, top.height), (10, 20));
         assert!(s.delete(a2.id));
         assert!(s.image(a2.id).is_none());
+    }
+
+    #[test]
+    fn exported_image_follows_its_clip() {
+        let mut s = Store::open_at(tmp("export")).unwrap();
+        let png = vec![9u8, 8, 7];
+        let a = s.add_image(png.clone(), 1, 1, None).unwrap();
+        let t = s.add_text("text".into(), Rich::default(), None).unwrap();
+        assert!(s.export_image(t.id).is_none(), "text clips have no image");
+        let path = s.export_image(a.id).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), png);
+        assert_eq!(s.export_image(a.id).unwrap(), path, "exported once");
+
+        // Re-copying the same image moves it to a new id; the old file goes.
+        let a2 = s.add_image(png, 1, 1, None).unwrap();
+        assert!(!path.exists());
+        let path2 = s.export_image(a2.id).unwrap();
+        assert!(s.delete(a2.id));
+        assert!(!path2.exists());
     }
 
     #[test]

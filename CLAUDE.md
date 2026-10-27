@@ -19,7 +19,7 @@ just clips        # newest rows in ~/.klepp/klepp.db
 
 - `src/main.rs` — Tauri app, global shortcut, panel placement, commands, `klepp://` image protocol, retention thread, CLI flags (`--show`, `--login on|off`, `--login-status`)
 - `src/clipboard.rs` — NSPasteboard poller (text with RTF/HTML flavors + images), concealed/ignored-app filtering, writing clips back
-- `src/store.rs` — SQLite (`~/.klepp/klepp.db`): clips, search, retention, `settings` table; unit tests live here
+- `src/store.rs` — SQLite (`~/.klepp/klepp.db`): clips, search, retention, `settings` table; unit tests live here. Image clips are written to `~/.klepp/images/klepp-<id>.png` on demand (right-click menu) and removed with their clip
 - `src/config.rs` — `~/.klepp/config.toml` (shortcut, ignore_apps, max_image_mb)
 - `src/paste.rs` — re-activates the previous app, waits until frontmost, sends Cmd+V (or Ctrl+V for images into terminals, see `ctrl_v_image_apps`) via CGEvent; Accessibility check and prompt
 - `src/login.rs` — launch at login through SMAppService

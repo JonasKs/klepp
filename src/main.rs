@@ -15,6 +15,7 @@ use std::thread;
 use std::time::Duration;
 
 use tauri::http::{Response, StatusCode};
+use tauri::menu::{Menu, MenuItem};
 use tauri::{
     ActivationPolicy, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State,
     WebviewUrl, WebviewWindowBuilder, WindowEvent,
@@ -138,6 +139,61 @@ fn pick(
     hide_panel(&app);
     thread::spawn(move || paste::paste_into(target, key));
     true
+}
+
+/// Menu item ids for the image context menu; the clip id follows the prefix.
+const MENU_COPY_PATH: &str = "image-copy-path:";
+const MENU_REVEAL: &str = "image-reveal:";
+
+/// Right-click on an image clip: a native menu to copy its file path or show
+/// it in Finder. Handled in [`on_image_menu`].
+#[tauri::command]
+fn image_menu(id: i64, window: tauri::Window) -> Result<(), String> {
+    let copy = MenuItem::with_id(
+        &window,
+        format!("{MENU_COPY_PATH}{id}"),
+        "Copy File Path",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+    let reveal = MenuItem::with_id(
+        &window,
+        format!("{MENU_REVEAL}{id}"),
+        "Show in Finder",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(&window, &[&copy, &reveal]).map_err(|e| e.to_string())?;
+    window.popup_menu(&menu).map_err(|e| e.to_string())
+}
+
+fn on_image_menu(app: &AppHandle, event_id: &str) {
+    let (reveal, id) = if let Some(id) = event_id.strip_prefix(MENU_COPY_PATH) {
+        (false, id)
+    } else if let Some(id) = event_id.strip_prefix(MENU_REVEAL) {
+        (true, id)
+    } else {
+        return;
+    };
+    let Ok(id) = id.parse::<i64>() else {
+        return;
+    };
+    let state = app.state::<AppState>();
+    let Some(path) = state.store.lock().unwrap().export_image(id) else {
+        log::line(format!("image menu: cannot export clip {id}"));
+        return;
+    };
+    hide_panel(app);
+    if reveal {
+        let _ = std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn();
+    } else {
+        state.watcher.set_text(&path.to_string_lossy(), None);
+    }
 }
 
 /// Lets the panel report its own errors into the log file.
@@ -287,7 +343,9 @@ fn main() {
             paste_target: Mutex::new(None),
         })
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![list, remove, pick, hide, report])
+        .invoke_handler(tauri::generate_handler![
+            list, remove, pick, image_menu, hide, report
+        ])
         // Serves image clips to the panel as klepp://localhost/image/<id>.
         .register_uri_scheme_protocol("klepp", |ctx, request| {
             let png = request
@@ -356,6 +414,8 @@ fn main() {
             if std::env::args().any(|a| a == "--show") {
                 show_panel(&handle);
             }
+
+            win.on_menu_event(|w, event| on_image_menu(w.app_handle(), event.id.as_ref()));
 
             let handle = app.handle().clone();
             win.on_window_event(move |event| {

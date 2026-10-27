@@ -199,6 +199,13 @@
       li.appendChild(x);
       li.addEventListener('mousedown', ev => ev.preventDefault()); // keep input focus
       li.addEventListener('click', ev => { sel = i; pick(ev); });
+      if (c.kind === 'image') {
+        // Native menu: Copy File Path / Show in Finder.
+        li.addEventListener('contextmenu', () => {
+          sel = i; render();
+          invoke('image_menu', { id: c.id }).catch(e => report(`image menu: ${e}`));
+        });
+      }
       list.appendChild(li);
     });
     preview.textContent = '';
