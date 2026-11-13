@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/JonasKs/klepp/compare/v0.5.0...v0.6.0) (2026-11-13)
+
+
+### Features
+
+* option to hide the menu bar icon ([2d7f4ce](https://github.com/JonasKs/klepp/commit/2d7f4ce7e52b7416d59682f0c614ab406ba940c0))
+
 ## [0.5.0](https://github.com/JonasKs/klepp/compare/v0.4.0...v0.5.0) (2026-10-27)
 
 
