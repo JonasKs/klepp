@@ -54,6 +54,11 @@ The clipboard icon in the menu bar lets you pause recording, choose when old cli
 are deleted (never, or after 1, 7, 30, 90 days or 1 year), edit the configuration,
 and quit.
 
+Menu bar crowded? Untick **Show in menu bar**. Klepp keeps recording, **⌘⇧V**
+still opens it, and the **⋯** button in the panel (or a right-click on its top
+bar) has the same menu. Opening Klepp again from Spotlight or Applications brings
+the icon back.
+
 ## Permissions
 
 Pasting with **⏎** needs **Accessibility** access. Klepp asks for it the first time

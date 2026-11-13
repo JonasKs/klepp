@@ -1,5 +1,9 @@
 //! Menu bar status item: open the panel, pause recording, auto-delete
 //! schedule, config access, quit.
+//!
+//! The icon can be hidden ("Show in menu bar"). The same menu then opens from the
+//! panel's ⋯ button, and opening Klepp again (Spotlight, Applications) brings the
+//! icon back.
 
 use std::sync::atomic::Ordering;
 
@@ -9,18 +13,27 @@ use objc2_foundation::NSString;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
-use tauri::{App, AppHandle, Manager};
+use tauri::{App, AppHandle, Manager, Window};
 
 use crate::AppState;
 
 const ID_OPEN: &str = "open";
 const ID_PAUSE: &str = "pause";
 const ID_LOGIN: &str = "login";
+const ID_MENUBAR: &str = "menubar";
 const ID_FOLDER: &str = "folder";
 const ID_EDIT_CONFIG: &str = "edit-config";
 const ID_RELOAD_CONFIG: &str = "reload-config";
 const ID_QUIT: &str = "quit";
 const RETENTION_PREFIX: &str = "retention-";
+/// Settings key: "1" while the menu bar icon is hidden.
+const KEY_HIDDEN: &str = "tray_hidden";
+
+/// The tray menu, kept so the panel can pop it up while the icon is hidden.
+pub struct TrayMenu {
+    menu: Menu<tauri::DynRuntime>,
+    shown: CheckMenuItem<tauri::DynRuntime>,
+}
 
 /// (days, label); 0 keeps everything.
 const RETENTION_CHOICES: &[(u32, &str)] = &[
@@ -37,12 +50,14 @@ fn open_label(shortcut: &str) -> String {
 }
 
 pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
-    let current_days = app
-        .state::<AppState>()
-        .store
-        .lock()
-        .unwrap()
-        .retention_days();
+    let (current_days, hidden) = {
+        let state = app.state::<AppState>();
+        let store = state.store.lock().unwrap();
+        (
+            store.retention_days(),
+            store.setting(KEY_HIDDEN).as_deref() == Some("1"),
+        )
+    };
 
     let open = MenuItem::with_id(app, ID_OPEN, open_label(shortcut), true, None::<&str>)?;
     let pause =
@@ -53,6 +68,14 @@ pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
         "Launch at login",
         true,
         crate::login::is_enabled(),
+        None::<&str>,
+    )?;
+    let shown = CheckMenuItem::with_id(
+        app,
+        ID_MENUBAR,
+        "Show in menu bar",
+        true,
+        !hidden,
         None::<&str>,
     )?;
 
@@ -92,6 +115,7 @@ pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
             &pause,
             &PredefinedMenuItem::separator(app)?,
             &login,
+            &shown,
             &retention,
             &PredefinedMenuItem::separator(app)?,
             &folder,
@@ -103,7 +127,11 @@ pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
     )?;
 
     let icon = Image::from_bytes(include_bytes!("../icons/tray.png"))?;
-    TrayIconBuilder::with_id("main")
+    app.manage(TrayMenu {
+        menu: menu.clone(),
+        shown: shown.clone(),
+    });
+    let tray = TrayIconBuilder::with_id("main")
         .icon(icon)
         .icon_as_template(true)
         .tooltip("Klepp")
@@ -126,6 +154,18 @@ pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
                     if let Err(e) = crate::login::apply_choice(&store, on) {
                         let _ = login.set_checked(!on);
                         alert(app, "Klepp could not change the login item", &e);
+                    }
+                }
+                ID_MENUBAR => {
+                    let on = shown.is_checked().unwrap_or(true);
+                    set_shown(app, on);
+                    if !on {
+                        alert(
+                            app,
+                            "Klepp is hidden from the menu bar",
+                            "It keeps recording. The panel's ⋯ button has this menu, and \
+                             opening Klepp from Spotlight or Applications shows the icon again.",
+                        );
                     }
                 }
                 ID_FOLDER => {
@@ -179,7 +219,39 @@ pub fn install(app: &App, shortcut: &str) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+    if hidden {
+        tray.set_visible(false)?;
+    }
     Ok(())
+}
+
+/// Whether the menu bar icon is hidden.
+pub fn is_hidden(app: &AppHandle) -> bool {
+    app.state::<AppState>()
+        .store
+        .lock()
+        .unwrap()
+        .setting(KEY_HIDDEN)
+        .as_deref()
+        == Some("1")
+}
+
+/// Show or hide the menu bar icon, and remember the choice.
+pub fn set_shown(app: &AppHandle, on: bool) {
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_visible(on);
+    }
+    let _ = app.state::<TrayMenu>().shown.set_checked(on);
+    app.state::<AppState>()
+        .store
+        .lock()
+        .unwrap()
+        .set_setting(KEY_HIDDEN, if on { "0" } else { "1" });
+}
+
+/// Pop the tray menu up in the panel, for its ⋯ button.
+pub fn popup(window: &Window) -> tauri::Result<()> {
+    window.popup_menu(&window.state::<TrayMenu>().menu)
 }
 
 /// Native alert, shown from the main thread.

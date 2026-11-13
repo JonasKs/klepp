@@ -169,6 +169,13 @@ fn image_menu(id: i64, window: tauri::Window) -> Result<(), String> {
     window.popup_menu(&menu).map_err(|e| e.to_string())
 }
 
+/// The panel's ⋯ button: the menu bar menu, which is the only way to reach it while
+/// the icon is hidden.
+#[tauri::command]
+fn app_menu(window: tauri::Window) -> Result<(), String> {
+    tray::popup(&window).map_err(|e| e.to_string())
+}
+
 fn on_image_menu(app: &AppHandle, event_id: &str) {
     let (reveal, id) = if let Some(id) = event_id.strip_prefix(MENU_COPY_PATH) {
         (false, id)
@@ -344,7 +351,7 @@ fn main() {
         })
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
-            list, remove, pick, image_menu, hide, report
+            list, remove, pick, image_menu, app_menu, hide, report
         ])
         // Serves image clips to the panel as klepp://localhost/image/<id>.
         .register_uri_scheme_protocol("klepp", |ctx, request| {
@@ -464,6 +471,16 @@ fn main() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running klepp");
+        .build(tauri::generate_context!())
+        .expect("error while building klepp")
+        .run(|app, event| {
+            // Opening Klepp again while it runs (Spotlight, Applications) brings a
+            // hidden menu bar icon back, and opens the panel.
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if tray::is_hidden(app) {
+                    tray::set_shown(app, true);
+                }
+                show_panel(app);
+            }
+        });
 }

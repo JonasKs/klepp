@@ -49,6 +49,11 @@
   #q::placeholder { color: var(--fg-dim); }
   #count { color: var(--fg-dim); font-variant-numeric: tabular-nums; }
   #hint { color: var(--fg-dim); font-size: 11px; white-space: nowrap; }
+  #more {
+    border: 0; background: none; color: var(--fg-dim); font-size: 16px; line-height: 1;
+    padding: 2px 6px; border-radius: 6px; cursor: default;
+  }
+  #more:hover { background: var(--line); color: inherit; }
   kbd {
     font: inherit; padding: 0 4px; border-radius: 4px;
     background: var(--row-hover); border: 1px solid var(--line);
@@ -114,6 +119,7 @@
     <input id="q" type="text" placeholder="Search clipboard history…" autocomplete="off" spellcheck="false">
     <span id="count"></span>
     <span id="hint"><kbd>↑↓</kbd> move · <kbd>⏎</kbd> paste · <kbd>⌘⌫</kbd> delete · <kbd>esc</kbd> close</span>
+    <button id="more" title="Klepp menu" aria-label="Klepp menu">⋯</button>
   </div>
   <div id="body">
     <ul id="list"></ul>
@@ -226,6 +232,12 @@
     render();
   }
 
+  const appMenu = () => invoke('app_menu').catch(e => report(`app menu: ${e}`));
+  document.getElementById('more').addEventListener('click', appMenu);
+  document.getElementById('top').addEventListener('contextmenu', ev => {
+    if (ev.target.closest('input')) return; // keep the search field's own menu
+    ev.preventDefault(); appMenu();
+  });
   const report = message => invoke('report', { message: String(message) }).catch(() => {});
   window.addEventListener('error', ev => report(`error: ${ev.message} @${ev.lineno}`));
   window.addEventListener('unhandledrejection', ev => report(`rejection: ${ev.reason}`));

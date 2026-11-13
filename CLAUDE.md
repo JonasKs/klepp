@@ -24,7 +24,7 @@ just clips        # newest rows in ~/.klepp/klepp.db
 - `src/paste.rs` — re-activates the previous app, waits until frontmost, sends Cmd+V (or Ctrl+V for images into terminals, see `ctrl_v_image_apps`) via CGEvent; Accessibility check and prompt
 - `src/login.rs` — launch at login through SMAppService
 - `src/glass.rs` — NSGlassEffectView under the transparent webview, content layer clipped to the corner radius
-- `src/tray.rs` — menu bar item and native alerts
+- `src/tray.rs` — menu bar item and native alerts. The icon can be hidden (settings key `tray_hidden`); the panel's ⋯ button pops up the same menu, and `RunEvent::Reopen` in `main.rs` shows the icon again
 - `src/log.rs` — append-only `~/.klepp/klepp.log`
 - `ui/index.html` — the panel, plain HTML/JS, no build step
 
